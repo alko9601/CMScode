@@ -1,0 +1,145 @@
+#import file and necessary addons
+import ROOT as rt
+import numpy as np
+f = rt.TFile("/usr/users/csavard/for_Alex/displacedMu_hybrid.root",'read')
+tree = f.Get("L1TrackNtuple/eventTree")
+
+
+#set number of bins, as well as mins and maxes for the plot
+ptBin = 100.
+ptMin = 0.
+ptMax = 100.
+
+etaBin = 100.
+etaMin = -2.5
+etaMax = 2.5
+
+d0Bin = 100.
+d0Min = -10.
+d0Max = 10.
+
+
+#create arrays for each variable, as well as boolean arrays to indicate if the true particles were matched or not
+pt = [i for evt in tree for i in evt.tp_pt]
+eta = [i for evt in tree for i in evt.tp_eta]
+d0 = [i for evt in tree for i in evt.tp_d0] 
+pt_match = [abs(i) != 999 for evt in tree for i in evt.matchtrk_pt]
+eta_match = [abs(i) != 999 for evt in tree for i in evt.matchtrk_eta]
+d0_match = [abs(i) != 999 for evt in tree for i in evt.matchtrk_d0]
+
+
+#zip these together
+pt_compare = zip(pt,pt_match,d0)
+eta_compare = zip(eta,eta_match,d0)
+d0_compare = zip(d0,d0_match)
+
+
+#make cuts to only look between min and max values, and only look at pt's and eta's that are displaced (i.e. |d0| > 0.1 cm)
+pt_compare_cut = [i for i in pt_compare if abs(i[2]) > 0.1 and not np.isnan(i[0]) and ptMin < i[0] < ptMax]
+eta_compare_cut = [i for i in eta_compare if abs(i[2]) > 0.1 and not np.isnan(i[0]) and etaMin < i[0] < etaMax]
+d0_compare_cut = [i for i in d0_compare if not np.isnan(i[0]) and d0Min < i[0] < d0Max]
+
+
+#NOTE: THIS SECTION UP TO THE "h_pt" LINE IS NOT NECESSARY FOR GENERATING EFFICIENCY PLOTS.
+#create efficiency arrays
+pt_eff = []
+eta_eff = []
+d0_eff = []
+
+#create arrays with proper bin spacing
+ptBinRange = np.arange(ptBin)*(ptMax-ptMin)/ptBin
+etaBinRange = np.arange(etaBin)*(etaMax-etaMin)/etaBin
+d0BinRange = np.arange(d0Bin)*(d0Max-d0Min)/d0Bin
+
+#manually fill efficiency arrays for each bin
+x = 0
+for i in ptBinRange:
+     try:
+          bin_pt = [j for j in pt_compare_cut if i < j[0] < ptBinRange[x+1]]
+     except IndexError:
+          bin_pt = [j for j in pt_compare_cut if i < j[0] < ptMax]
+     n_pt = np.shape(bin_pt)[0]
+     n_ptMatch = np.shape([j for j in bin_pt if j[1]])[0]
+     try:
+          pt_eff.append((round(float(n_ptMatch)/float(n_pt),3),ptMatch,n_pt))
+     except ZeroDivisionError:
+          pt_eff.append((0,0,0))
+     x += 1
+
+x = 0
+for i in etaBinRange:
+     try:
+          bin_eta = [j for j in eta_compare_cut if i < j[0] < etaBinRange[x+1]]
+     except IndexError:
+          bin_eta = [j for j in eta_compare_cut if i < j[0] < etaMax]
+     n_eta = np.shape(bin_eta)[0]
+     n_etaMatch = np.shape([j for j in bin_eta if j[1]])[0]
+     try:
+          eta_eff.append((round(float(n_etaMatch)/float(n_eta),3),n_etaMatch,n_eta))
+     except ZeroDivisionError:
+          eta_eff.append((0,0,0))
+     x += 1
+
+x = 0
+for i in d0BinRange:
+     try:
+          bin_d0 = [j for j in d0_compare_cut if i < j[0] < d0BinRange[x+1]]
+     except IndexError:
+          bin_d0 = [j for j in d0_compare_cut if i < j[0] < d0Max]
+     n_d0 = np.shape(bin_d0)[0]
+     n_d0match = np.shape([j for j in bin_d0 if j[1]])[0]
+     try:
+          d0_eff.append((round(float(n_d0match)/float(n_d0),3),n_d0match,n_d0))
+     except ZeroDivisionError:
+          d0_eff.append((0,0,0))
+     x += 1
+
+
+#create histograms for efficiency plots
+#NOTE: MATCH HISTOGRAMS DO NOT PLOT MATCHED TRACKS, THEY PLOT TRUE PARTICLES THAT HAVE MATCHED TRACKS
+h_pt = rt.TH1F('h_pt','pT Distribution of Tracks [GeV]',int(ptBin),ptMin,ptMax)
+h_eta = rt.TH1F('h_eta','#eta Distribution of Tracks',int(etaBin),etaMin,etaMax)
+h_d0 = rt.TH1F('h_d0','d_{0} Distribution of Tracks [cm]',int(d0Bin),d0Min,d0Max)
+h_ptMatch = rt.TH1F('h_ptMatch','pT Distribution of Matched Tracks [GeV]',int(ptBin),ptMin,ptMax)
+h_etaMatch = rt.TH1F('h_etaMatch','#eta Distribution of Matched Tracks',int(etaBin),etaMin,etaMax)
+h_d0Match = rt.TH1F('h_d0Match','d_{0} Distribution of Matched Tracks [cm]',int(d0Bin),d0Min,d0Max)
+
+
+#fill histograms
+for i in pt_compare_cut:
+     h_pt.Fill(i[0])
+     if i[1]:
+          h_ptMatch.Fill(i[0])
+
+for i in eta_compare_cut:
+     h_eta.Fill(i[0])
+     if i[1]:
+          h_etaMatch.Fill(i[0])
+
+for i in d0_compare_cut:
+     h_d0.Fill(i[0])
+     if i[1]:
+          h_d0Match.Fill(i[0])
+
+
+#divide histograms to create efficiency plots
+h_ptRatio = h_ptMatch.Clone('h_ptRatio')
+h_ptRatio.Divide(h_ptMatch,h_pt,1.0,1.0)
+h_ptRatio.SetTitle('pT Tracking Efficiency for |d_{0}| > 0.1 cm')
+h_ptRatio.GetXaxis().SetTitle('Transverse Momentum [GeV]')
+h_ptRatio.GetYaxis().SetTitle('Efficiency')
+h_ptRatio.Draw()
+
+h_etaRatio = h_etaMatch.Clone('h_etaRatio')
+h_etaRatio.Divide(h_etaMatch,h_eta,1.0,1.0)
+h_etaRatio.SetTitle('#eta Tracking Efficiency for |d_{0}| > 0.1 cm')
+h_etaRatio.GetXaxis().SetTitle('Pseudorapidity')
+h_etaRatio.GetYaxis().SetTitle('Efficiency')
+h_etaRatio.Draw()
+
+h_d0Ratio = h_d0Match.Clone('h_d0Ratio')
+h_d0Ratio.Divide(h_d0Match,h_d0,1.0,1.0)
+h_d0Ratio.SetTitle('d_{0} True Tracking Efficiency')
+h_d0Ratio.GetXaxis().SetTitle('d_{0} [cm]')
+h_d0Ratio.GetYaxis().SetTitle('Efficiency')
+h_d0Ratio.Draw()
