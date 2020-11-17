@@ -1,0 +1,64 @@
+#
+#import sample and libraries
+
+
+import ROOT as rt
+import numpy as np
+f = rt.TFile("[INSERT SAMPLE DIRECTORY]",'read')
+tree = f.Get("L1TrackNtuple/eventTree")
+
+
+#
+#create histograms for tracks per event with specific cuts AND percentage of tracks per event with specific cuts
+
+
+h_num = rt.TH1F('h_num','Generated Charged Particles with pT > 2 GeV and |#eta| < 2.4 per Event (prompt)',100,50,350)
+h_pct = rt.TH1F('h_pct','Percentage of Charged Particles per Event with pT > 2 GeV and |#eta| < 2.4 (prompt)',100,.9,1)
+
+
+#
+#set up lists to fill histograms
+
+
+nList = []
+mList = []
+pctList = []
+
+
+#
+#fill tracks per event histogram and calculate percentages for percent tracks per event histogram
+
+
+for evt in tree:
+     n = 0
+     m = 0
+     for i in zip(evt.tp_pt,evt.tp_eta):
+          m += 1                                              #add for any track in this event
+          if i[0] > 2 and np.abs(i[1]) < 2.4:
+               n += 1                                         #add for tracks in this event with pT > 2 and eta < 2.4
+     h_num.Fill(n)                                            #fill histogram with number of tracks in this event that have pt > 2 and eta < 2.4
+     h_pct.Fill(round(float(n)/float(m),3))                   #calculate percent value and fill percent histogram
+     mList.append(m)
+     nList.append(n)
+
+
+#
+#make a list of values to check against plots
+
+
+for i in zip(nList,mList):
+     pctList.append(round(float(i[0])/float(i[1]),3))
+
+
+#
+#draw histograms
+
+
+h_num.GetXaxis().SetTitle('Tracks per Event with pT > 2 GeV and |#eta| < 2.4')
+h_num.GetYaxis().SetTitle('Counts per Bin')
+h_num.Draw()
+
+h_pct.GetXaxis().SetTitle('Percentage of Tracks per Event with pT > 2 GeV and |#eta| < 2.4')
+h_pct.GetYaxis().SetTitle('Counts per Bin')
+h_pct.Draw()
+rt.c1.SetLogy()
