@@ -1,0 +1,326 @@
+#
+#import sample file and necessary libraries
+
+
+import ROOT as rt
+import numpy as np
+import time
+f = rt.TFile("[ENTER ROOT FILE DIRECTORY HERE]",'read')
+tree = f.Get("L1TrackNtuple/eventTree")
+
+
+#
+#set bounds for efficiency and distribution plots
+
+
+ptBin = 50.
+ptMin = 10.
+ptMax = 100.
+
+etaBin = 50.
+etaMin = -2.4
+etaMax = 2.4
+
+d0Bin = 50.
+d0Min = -20.
+d0Max = 20.
+
+z0Bin = 50.
+z0Min = -30.
+z0Max = 30.
+
+
+#
+#get arrays for true particles and reconstructed particles
+#for the matched arrays, the first entry is boolean and tells you if the reconstructed track has been matched or not, and the second entry is the reconstructed track value
+
+
+pt = [i for evt in tree for i in evt.tp_pt]
+eta = [i for evt in tree for i in evt.tp_eta]
+d0 = [i for evt in tree for i in evt.tp_d0] 
+z0 = [i for evt in tree for i in evt.tp_z0] 
+pt_match = [(abs(i) != 999,i) for evt in tree for i in evt.matchtrk_pt]
+eta_match = [(abs(i) != 999,i) for evt in tree for i in evt.matchtrk_eta]
+d0_match = [(abs(i) != 999,i) for evt in tree for i in evt.matchtrk_d0]
+z0_match = [(abs(i) != 999,i) for evt in tree for i in evt.matchtrk_z0]
+id = [i for evt in tree for i in evt.tp_pdgid]
+
+
+#
+#zip arrays together to be able to make cuts
+
+
+pt_compare = zip(pt,pt_match,d0,id,eta)
+eta_compare = zip(eta,eta_match,d0,id,pt)
+d0_compare = zip(d0,d0_match,id,pt,eta)
+z0_compare = zip(z0,z0_match,id,pt,eta,d0)
+
+
+#
+#make cuts on arrays
+#here we are only looking at tracks that are muons (pdgid = +/- 13) and their pT value is greater than 10 GeV (pt > 10)
+
+
+pt_compare_cut = [i for i in pt_compare if not np.isnan(i[0]) and abs(i[3]) == 13 and i[0] > 10]
+eta_compare_cut = [i for i in eta_compare if not np.isnan(i[0]) and abs(i[3]) == 13 and i[4] > 10]
+d0_compare_cut = [i for i in d0_compare if not np.isnan(i[0]) and abs(i[2]) == 13 and i[3] > 10]
+z0_compare_cut = [i for i in z0_compare if not np.isnan(i[0]) and abs(i[2]) == 13 and i[3] > 10]
+
+
+#
+#create lists to store efficiency values
+
+
+pt_eff = []
+eta_eff = []
+d0_eff = []
+z0_eff = []
+
+
+#
+#enumerate binning ranges
+
+
+ptBinNum = np.arange(ptBin)
+etaBinNum = np.arange(etaBin)
+d0BinNum = np.arange(d0Bin)
+z0BinNum = np.arange(z0Bin)
+
+
+#
+#divide arrays by number of bins, where bin width is given by (valMax-valMin)/valBin 
+
+
+ptBinRange = (ptBinNum*(ptMax-ptMin)/ptBin) + ptMin
+etaBinRange = (etaBinNum*(etaMax-etaMin)/etaBin) + etaMin
+d0BinRange = (d0BinNum*(d0Max-d0Min)/d0Bin) + d0Min
+z0BinRange = (z0BinNum*(z0Max-z0Min)/z0Bin) + z0Min
+
+
+#
+#find pt efficiencies
+
+
+x = 0
+for i in ptBinRange:
+     try:
+          bin_pt = [j for j in pt_compare_cut if i < j[0] < ptBinRange[x+1]]      #get array of truth particles that are in the i^th bin
+     except IndexError:
+          bin_pt = [j for j in pt_compare_cut if i < j[0] < ptMax]                #exception for last bin
+     n_pt = np.shape(bin_pt)[0]                                                   #get number of truth particles that are in the i^th bin
+     n_ptMatch = np.shape([j for j in bin_pt if j[1][0]])[0]                      #get number of truth particles in that bin that have been matched to a reconstructed particle
+     try:                                                                         #calculate the efficiency for that specific bin
+          pt_eff.append((round(float(n_ptMatch)/float(n_pt),3),n_ptMatch,n_pt))
+     except ZeroDivisionError:
+          pt_eff.append((0,0,0))                                                  #exception for empty bin to avoid dividing by zero
+     x += 1
+
+
+#
+#repeat process for eta, d0, and z0
+
+
+x = 0
+for i in etaBinRange:
+     try:
+          bin_eta = [j for j in eta_compare_cut if i < j[0] < etaBinRange[x+1]]
+     except IndexError:
+          bin_eta = [j for j in eta_compare_cut if i < j[0] < etaMax]
+     n_eta = np.shape(bin_eta)[0]
+     n_etaMatch = np.shape([j for j in bin_eta if j[1][0]])[0]
+     try:
+          eta_eff.append((round(float(n_etaMatch)/float(n_eta),3),n_etaMatch,n_eta))
+     except ZeroDivisionError:
+          eta_eff.append((0,0,0))
+     x += 1
+
+x = 0
+for i in d0BinRange:
+     try:
+          bin_d0 = [j for j in d0_compare_cut if i < j[0] < d0BinRange[x+1]]
+     except IndexError:
+          bin_d0 = [j for j in d0_compare_cut if i < j[0] < d0Max]
+     n_d0 = np.shape(bin_d0)[0]
+     n_d0match = np.shape([j for j in bin_d0 if j[1][0]])[0]
+     try:
+          d0_eff.append((round(float(n_d0match)/float(n_d0),3),n_d0match,n_d0))
+     except ZeroDivisionError:
+          d0_eff.append((0,0,0))
+     x += 1
+
+x = 0
+for i in z0BinRange:
+     try:
+          bin_z0 = [j for j in z0_compare_cut if i < j[0] < z0BinRange[x+1]]
+     except IndexError:
+          bin_z0 = [j for j in z0_compare_cut if i < j[0] < z0Max]
+     n_z0 = np.shape(bin_z0)[0]
+     n_z0match = np.shape([j for j in bin_z0 if j[1][0]])[0]
+     try:
+          z0_eff.append((round(float(n_z0match)/float(n_z0),3),n_z0match,n_z0))
+     except ZeroDivisionError:
+          z0_eff.append((0,0,0))
+     x += 1
+
+
+#
+#create distribution of genuine (true) pT tracks
+#if you want to add more features like Gaussian errors, you can add lines of code before you .Draw() or you can right click the plot in the interface and add errors there
+
+
+h_pt = rt.TH1F('h_pt','pT Distribution of Gen Tracks',int(ptBin),ptMin,ptMax)
+h_pt.GetXaxis().SetTitle('Transverse Momentum [GeV]')
+h_pt.GetYaxis().SetTitle('Counts per Bin')
+#create distribution of genuine (true) pT tracks that have matched reconstructed tracks
+h_ptMatch = rt.TH1F('h_ptMatch','pT Distribution of Matched Gen Tracks',int(ptBin),ptMin,ptMax)
+h_ptMatch.GetXaxis().SetTitle('Transverse Momentum [GeV]')
+h_ptMatch.GetYaxis().SetTitle('Counts per Bin')
+#create distribution of matched reconstructed pT tracks
+h_ptReco = rt.TH1F('h_ptReco','pT Distrubtion of Matched Reconstructed Tracks',int(ptBin),ptMin,ptMax)
+h_ptReco.GetXaxis().SetTitle('Transverse Momentum [GeV]')
+h_ptReco.GetYaxis().SetTitle('Counts per Bin')
+
+
+#
+#do the same for eta, d0, and z0
+
+
+h_eta = rt.TH1F('h_eta','#eta Distribution of Gen Tracks with pt > 30 GeV',int(etaBin),etaMin,etaMax)
+h_eta.GetXaxis().SetTitle('Pseudorapidity')
+h_eta.GetYaxis().SetTitle('Counts per Bin')
+h_etaMatch = rt.TH1F('h_etaMatch','#eta Distribution of Matched Gen Tracks',int(etaBin),etaMin,etaMax)
+h_etaMatch.GetXaxis().SetTitle('Pseudorapidity')
+h_etaMatch.GetYaxis().SetTitle('Counts per Bin')
+h_etaReco = rt.TH1F('h_etaReco','#eta Distrubtion of Matched Reconstructed Tracks',int(etaBin),etaMin,etaMax)
+h_etaReco.GetXaxis().SetTitle('Pseudorapidity')
+h_etaReco.GetYaxis().SetTitle('Counts per Bin')
+
+h_d0 = rt.TH1F('h_d0','d_{0} Distribution of Gen Tracks',int(d0Bin),d0Min,d0Max)
+h_d0.GetXaxis().SetTitle('Transverse Impact Parameter [cm]')
+h_d0.GetYaxis().SetTitle('Counts per Bin')
+h_d0Match = rt.TH1F('h_d0Match','d_{0} Distribution of Matched Gen Tracks',int(d0Bin),d0Min,d0Max)
+h_d0Match.GetXaxis().SetTitle('Transverse Impact Parameter [cm]')
+h_d0Match.GetYaxis().SetTitle('Counts per Bin')
+h_d0Reco = rt.TH1F('h_d0Reco','d_{0} Distrubtion of Matched Reconstructed Tracks',int(d0Bin),d0Min,d0Max)
+h_d0Reco.GetXaxis().SetTitle('Transverse Impact Parameter [cm]')
+h_d0Reco.GetYaxis().SetTitle('Counts per Bin')
+
+h_z0 = rt.TH1F('h_z0','z_{0} Distribution of Gen Tracks',int(z0Bin),z0Min,z0Max)
+h_z0.GetXaxis().SetTitle('Longitudinal Impact Parameter [cm]')
+h_z0.GetYaxis().SetTitle('Counts per Bin')
+h_z0Match = rt.TH1F('h_z0Match','z_{0} Distribution of Matched Gen Tracks',int(z0Bin),z0Min,z0Max)
+h_z0Match.GetXaxis().SetTitle('Longitudinal Impact Parameter [cm]')
+h_z0Match.GetYaxis().SetTitle('Counts per Bin')
+h_z0Reco = rt.TH1F('h_z0Reco','z_{0} Distrubtion of Matched Reconstructed Tracks',int(z0Bin),z0Min,z0Max)
+h_z0Reco.GetXaxis().SetTitle('Longitudinal Impact Parameter [cm]')
+h_z0Reco.GetYaxis().SetTitle('Counts per Bin')
+
+
+#
+#fill histograms with tracks
+
+
+for i in pt_compare_cut:
+     h_pt.Fill(i[0])                 
+     if i[1][0]:                                        #only fill matched true and reconstructed distrubtions if a reconstructed particle has been matched to a true particle
+          h_ptMatch.Fill(i[0])
+          h_ptReco.Fill(i[1][1])
+
+for i in eta_compare_cut:
+     h_eta.Fill(i[0])
+     if i[1][0]:
+          h_etaMatch.Fill(i[0])
+          h_etaReco.Fill(i[1][1])
+
+for i in d0_compare_cut:
+     h_d0.Fill(i[0])
+     if i[1][0]:
+          h_d0Match.Fill(i[0])
+          h_d0Reco.Fill(i[1][1])
+
+for i in z0_compare_cut:
+     h_z0.Fill(i[0])
+     if i[1][0]:
+          h_z0Match.Fill(i[0])
+          h_z0Reco.Fill(i[1][1])
+
+
+#
+#generate true distribution plots
+
+
+h_pt.Draw()
+h_eta.Draw()
+h_d0.Draw()
+
+
+#
+#generate matched true distribution plots
+
+
+h_ptMatch.Draw()
+h_etaMatch.Draw()
+h_d0Match.Draw()
+
+
+#
+#generate matched reconstructed distribution plots
+
+
+h_ptReco.Draw()
+h_etaReco.Draw()
+h_d0Reco.Draw()
+
+
+#
+#generate efficiency plots for pT, eta, d0, and z0
+
+
+h_ptRatio = h_ptMatch.Clone('h_ptRatio')
+h_ptRatio.Divide(h_ptMatch,h_pt,1.0,1.0)
+h_ptRatio.SetTitle('pT Gen Particle Efficiency for Muons Only')
+h_ptRatio.GetXaxis().SetTitle('Transverse Momentum [GeV]')
+h_ptRatio.GetYaxis().SetTitle('Efficiency')
+for i in ptBinNum:
+     try:
+          h_ptRatio.SetBinError(int(i)+1,np.sqrt(pt_eff[int(i)][0]*(1-pt_eff[int(i)][0])/pt_eff[int(i)][2]))          #Set binomial errors for efficiency plots
+     except ZeroDivisionError:
+          h_ptRatio.SetBinError(int(i)+1,0)
+h_ptRatio.Draw()
+
+h_etaRatio = h_etaMatch.Clone('h_etaRatio')
+h_etaRatio.Divide(h_etaMatch,h_eta,1.0,1.0)
+h_etaRatio.SetTitle('#eta Gen Particle Efficiency for Muons Only')
+h_etaRatio.GetXaxis().SetTitle('Pseudorapidity')
+h_etaRatio.GetYaxis().SetTitle('Efficiency')
+h_etaRatio.GetYaxis().SetTitle('Efficiency')
+for i in etaBinNum:
+     try:
+          h_etaRatio.SetBinError(int(i)+1,np.sqrt(eta_eff[int(i)][0]*(1-eta_eff[int(i)][0])/eta_eff[int(i)][2]))
+     except ZeroDivisionError:
+          h_etaRatio.SetBinError(int(i)+1,0)
+h_etaRatio.Draw()
+
+h_d0Ratio = h_d0Match.Clone('h_d0Ratio')
+h_d0Ratio.Divide(h_d0Match,h_d0,1.0,1.0)
+h_d0Ratio.SetTitle('d_{0} Gen Particle Tracking Efficiency for Muons Only')
+h_d0Ratio.GetXaxis().SetTitle('d_{0} [cm]')
+h_d0Ratio.GetYaxis().SetTitle('Efficiency')
+for i in d0BinNum:
+     try:
+          h_d0Ratio.SetBinError(int(i)+1,np.sqrt(d0_eff[int(i)][0]*(1-d0_eff[int(i)][0])/d0_eff[int(i)][2]))
+     except ZeroDivisionError:
+          h_d0Ratio.SetBinError(int(i)+1,0)
+h_d0Ratio.Draw()
+
+h_z0Ratio = h_z0Match.Clone('h_z0Ratio')
+h_z0Ratio.Divide(h_z0Match,h_z0,1.0,1.0)
+h_z0Ratio.SetTitle('z_{0} Gen Particle Tracking Efficiency for Muons Only')
+h_z0Ratio.GetXaxis().SetTitle('z_{0} [cm]')
+h_z0Ratio.GetYaxis().SetTitle('Efficiency')
+for i in z0BinNum:
+     try:
+          h_z0Ratio.SetBinError(int(i)+1,np.sqrt(z0_eff[int(i)][0]*(1-z0_eff[int(i)][0])/z0_eff[int(i)][2]))
+     except ZeroDivisionError:
+          h_z0Ratio.SetBinError(int(i)+1,0)
+h_z0Ratio.Draw()
