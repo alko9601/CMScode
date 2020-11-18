@@ -1,0 +1,80 @@
+#
+#import sample and libraries
+
+
+import ROOT as rt
+import numpy as np
+f = rt.TFile("[INSERT SAMPLE DIRECTORY]",'read')
+tree = f.Get("L1TrackNtuple/eventTree")
+
+
+#
+#create phi tracks per sector distribution and distribution of number of tracks in the phi sector with most tracks per event
+
+
+
+h_phi = rt.TH1F('h_phi','#phi Tracks per Sector per Event (prompt)',60,0,60)
+h_nPhiSect = rt.TH1F('h_nPhiSect','# of #phi Tracks in Sector with Most Tracks per Event (prompt)',60,0,60)
+n = 0
+totalSecBad = []
+
+
+#
+#run loop to fill histograms
+
+
+for evt in tree:
+     sec1 = 0
+     sec2 = 0
+     sec3 = 0
+     sec4 = 0
+     sec5 = 0
+     sec6 = 0
+     sec7 = 0
+     sec8 = 0
+     sec9 = 0
+     secBad = 0
+     for i in evt.tp_phi:
+          if -3.15 < i <= -7*(np.pi/9):
+               sec1 += 1
+          elif -7*(np.pi/9) < i <= -5*(np.pi/9):
+               sec2 += 1
+          elif -5*(np.pi/9) < i <= -3*(np.pi/9):
+               sec3 += 1
+          elif -3*(np.pi/9) < i <= -1*(np.pi/9):
+               sec4 += 1
+          elif -1*(np.pi/9) < i <= 1*(np.pi/9):
+               sec5 += 1
+          elif 1*(np.pi/9) < i <= 3*(np.pi/9):
+               sec6 += 1
+          elif 3*(np.pi/9) < i <= 5*(np.pi/9):
+               sec7 += 1
+          elif 5*(np.pi/9) < i <= 7*(np.pi/9):
+               sec8 += 1
+          elif 7*(np.pi/9) < i <= 3.15:
+               sec9 += 1
+          else:
+               secBad += 1                                              #for particles that aren't found to be in the (0,2*pi] range
+     if secBad != 0:
+          totalSecBad.append((n,secBad))
+          print "Error with event {}".format(n)
+          break
+     secList = [sec1,sec2,sec3,sec4,sec5,sec6,sec7,sec8,sec9,secBad]    #array of number of tracks in each sector in this event
+     for i in secList[:-1]:
+          h_phi.Fill(i)                                                 #since we should expect circular symmetry, we can fill the tracks per sector histogram with each individual sector without keeping track of which sector they came from
+     h_nPhiSect.Fill(max(secList))                                      #fill the other histogram with the number of tracks from the sector with the most tracks
+     n += 1
+
+
+#
+#draw histograms on logarithmic scale
+
+h_phi.GetXaxis().SetTitle('# of tracks in each #phi region per event')
+h_phi.GetYaxis().SetTitle('Counts per bin')
+h_phi.Draw()
+rt.c1.SetLogy()
+
+h_nPhiSect.GetXaxis().SetTitle('# of tracks in #phi sector with most tracks, per event')
+h_nPhiSect.GetYaxis().SetTitle('Counts per bin')
+h_nPhiSect.Draw()
+rt.c1.SetLogy()
