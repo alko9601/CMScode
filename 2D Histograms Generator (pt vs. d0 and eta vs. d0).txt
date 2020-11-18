@@ -1,0 +1,108 @@
+#
+#import sample and necessary libraries
+
+
+import ROOT as rt
+import numpy as np
+import time
+f = rt.TFile("[INSERT SAMPLE DIRECTORY]",'read')
+tree = f.Get("L1TrackNtuple/eventTree")
+
+
+#
+#set number of bins and ranges for distributions
+
+
+ptBin = 50.
+ptMin = 30.
+ptMax = 100.
+
+etaBin = 50.
+etaMin = -2.
+etaMax = 2.
+
+d0Bin = 50.
+d0Min = -100.
+d0Max = 100.
+
+
+#
+#fill arrays with track data
+
+
+pt = [i for evt in tree for i in evt.tp_pt]
+eta = [i for evt in tree for i in evt.tp_eta]
+d0 = [i for evt in tree for i in evt.tp_d0] 
+pt_match = [abs(i) != 999 for evt in tree for i in evt.matchtrk_pt]
+eta_match = [abs(i) != 999 for evt in tree for i in evt.matchtrk_eta]
+d0_match = [abs(i) != 999 for evt in tree for i in evt.matchtrk_d0]
+id = [i for evt in tree for i in evt.tp_pdgid]
+
+
+#
+#zip arrays to be able to make cuts to tracks
+
+
+pt_compare = zip(pt,pt_match,d0,eta,id)
+eta_compare = zip(eta,eta_match,d0,pt,id)
+
+
+#
+#make cuts to arrays
+#here we can check that our cuts select samples with |eta| < 2 and pdgid = +/- 13
+
+ 
+pt_compare_cut = [i for i in pt_compare if not np.isnan(i[0]) and 30 < i[0] and abs(i[3]) < 2 and abs(i[4]) == 13]
+eta_compare_cut = [i for i in eta_compare if not np.isnan(i[0]) and 30 < i[3] and abs(i[0]) < 2 and abs(i[4]) == 13]
+
+
+#
+#generate true (pt/eta) value vs. true d0 value 2D histograms
+
+  
+h_ptVSd0 = rt.TH2F('h_ptVSd0','pT Distribution of Tracking Particles vs. d_{0} Distribution of Tracking Particles',int(ptBin),ptMin,ptMax,int(d0Bin),d0Min,d0Max)
+h_etaVSd0 = rt.TH2F('h_etaVSd0','#eta Distribution of Tracking Particles vs. d_{0} Distribution of Tracking Particles',int(etaBin),etaMin,etaMax,int(d0Bin),d0Min,d0Max)
+
+
+#
+#generate matched true (pt/eta) value vs. true d0 value 2D histograms
+
+
+h_ptMatchVSd0 = rt.TH2F('h_ptMatchVSd0','pT Distribution of Matched Tracking Particles vs. d_{0} Distribution of Tracking Particles',int(ptBin),ptMin,ptMax,int(d0Bin),d0Min,d0Max)
+h_etaMatchVSd0 = rt.TH2F('h_etaMatchVSd0','#eta Distribution of Matched Tracking Particles vs. d_{0} Distribution of Tracking Particles',int(etaBin),etaMin,etaMax,int(d0Bin),d0Min,d0Max)
+
+
+#
+#fill histograms
+
+
+for i in pt_compare_cut:
+     h_ptVSd0.Fill(i[0],i[2])
+     if i[1]:
+          h_ptMatchVSd0.Fill(i[0],i[2])
+
+for i in eta_compare_cut:
+     h_etaVSd0.Fill(i[0],i[2])
+     if i[1]:
+          h_etaMatchVSd0.Fill(i[0],i[2])
+
+
+#
+#draw histograms
+
+
+h_ptVSd0.GetXaxis().SetTitle('Transverse Momentum [GeV]')
+h_ptVSd0.GetYaxis().SetTitle('Transverse Impact Parameter [cm]')
+h_ptVSd0.Draw()
+
+h_ptMatchVSd0.GetXaxis().SetTitle('Transverse Momentum [GeV]')
+h_ptMatchVSd0.GetYaxis().SetTitle('Transverse Impact Parameter [cm]')
+h_ptMatchVSd0.Draw()
+
+h_etaVSd0.GetXaxis().SetTitle('Psuedorapidity')
+h_etaVSd0.GetYaxis().SetTitle('Transverse Impact Parameter [cm]')
+h_etaVSd0.Draw()
+
+h_etaMatchVSd0.GetXaxis().SetTitle('Psuedorapidity')
+h_etaMatchVSd0.GetYaxis().SetTitle('Transverse Impact Parameter [cm]')
+h_etaMatchVSd0.Draw()
